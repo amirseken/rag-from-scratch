@@ -1,0 +1,19 @@
+# virtual environment
+.venv/
+ 
+# generated index (rebuild with ingest.py)
+index/
+ 
+# Python
+__pycache__/
+*.pyc
+ 
+# secrets: never commit API keys
+.env
+*.key
+ 
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+ 

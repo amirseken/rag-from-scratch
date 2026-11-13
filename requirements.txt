@@ -1,0 +1,8 @@
+
+ 
+fastembed>=0.4
+numpy>=1.26
+trafilatura>=1.12
+beautifulsoup4>=4.12
+requests>=2.32
+lxml_html_clean
