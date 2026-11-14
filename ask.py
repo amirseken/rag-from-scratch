@@ -1,5 +1,8 @@
 """Ask questions about the ingested docs from the terminal (answers by Google Gemini).
  
+Retrieval is two-stage: vector search finds candidates, a cross-encoder reranks them
+(see rerank.py).
+ 
 Usage:
     export GEMINI_API_KEY=your-key       (Windows PowerShell: $env:GEMINI_API_KEY="your-key")
     python ask.py
@@ -11,7 +14,8 @@ import requests
 from fastembed import TextEmbedding
  
 import config
-from store import VectorStore, embed
+from rerank import load_reranker, retrieve
+from store import VectorStore
  
 API_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
  
@@ -19,12 +23,6 @@ SYSTEM_PROMPT = """You answer questions using ONLY the numbered context passages
 - Cite the passages you used like [1], [2].
 - If the context does not contain the answer, say you don't know based on the indexed docs.
 - Do not invent details that are not in the context."""
- 
- 
-def retrieve(store, model, question: str):
-    """Embed the question and fetch the most similar chunks."""
-    q_vec = embed(model, [question])[0]
-    return store.search(q_vec, config.TOP_K)
  
  
 def build_prompt(question: str, hits) -> str:
@@ -76,8 +74,10 @@ def main():
         sys.exit("The index is empty. Run ingest.py first.")
  
     model = TextEmbedding(config.EMBED_MODEL, cache_dir=config.EMBED_CACHE_DIR)
+    reranker = load_reranker()  # first run downloads ~80 MB
  
-    print(f"Index has {len(store)} chunks. Type a question (or 'exit').\n")
+    mode = "vector search + reranking" if reranker else "vector search only"
+    print(f"Index has {len(store)} chunks ({mode}). Type a question (or 'exit').\n")
     while True:
         try:
             question = input("you> ").strip()
@@ -86,14 +86,16 @@ def main():
         if question.lower() in {"exit", "quit", ""}:
             break
  
-        hits = retrieve(store, model, question)
+        hits = retrieve(store, model, reranker, question)
         answer = generate(api_key, build_prompt(question, hits))
  
+        label = "relevance" if reranker else "similarity"
         print(f"\nassistant> {answer}\n\nSources:")
         for i, (chunk, score) in enumerate(hits, 1):
-            print(f"  [{i}] {chunk['url']}  (similarity {score:.2f})")
+            print(f"  [{i}] {chunk['url']}  ({label} {score:.2f})")
         print()
  
  
 if __name__ == "__main__":
     main()
+ 
